@@ -23,7 +23,7 @@ import html2text
 # =========================
 SCOPES = ["https://www.googleapis.com/auth/gmail.readonly"]
 EXCEL_PATH_DEFAULT = "job_links.xlsx"
-STATE_PATH_DEFAULT = "processed.json"   # keeps processed Gmail message IDs
+STATE_PATH_DEFAULT = "processed.json"  # keeps processed Gmail message IDs
 
 LABEL_NAME = "Jobs/LinkedIn"
 SEARCH_TERMS = [
@@ -36,13 +36,14 @@ GMAIL_QUERY_DEFAULT = f'(label:"{LABEL_NAME}" OR ({_terms})) newer_than:60d'
 
 # Unified URL matcher: LinkedIn jobs, lnkd.in, Jobindex
 JOB_URL_REGEX = re.compile(
-    r'(?:'
+    r"(?:"
     r'https?://(?:www\.)?linkedin\.com[^\s"\'<)]+'
-    r'|https?://lnkd\.in/[A-Za-z0-9_-]+'
+    r"|https?://lnkd\.in/[A-Za-z0-9_-]+"
     r'|https?://(?:www\.)?jobindex\.dk/vis-job/[^\s"\'<)]+'
-    r')',
-    re.IGNORECASE
+    r")",
+    re.IGNORECASE,
 )
+
 
 # =========================
 # Gmail auth & client
@@ -54,6 +55,7 @@ def get_gmail_service():
     if not creds or not creds.valid:
         if creds and creds.expired and creds.refresh_token:
             from google.auth.transport.requests import Request
+
             creds.refresh(Request())
         else:
             flow = InstalledAppFlow.from_client_secrets_file("credentials.json", SCOPES)
@@ -62,10 +64,12 @@ def get_gmail_service():
             token.write(creds.to_json())
     return build("gmail", "v1", credentials=creds)
 
+
 # =========================
 # Excel helpers
 # =========================
 HEADERS = ["Date", "From", "Subject", "Job URL", "Gmail Permalink", "Status", "Notes"]
+
 
 def ensure_excel(path: str) -> None:
     if not os.path.exists(path):
@@ -89,6 +93,7 @@ def ensure_excel(path: str) -> None:
 
         wb.save(path)
 
+
 def read_existing_urls(path: str) -> set:
     wb = load_workbook(path)
     ws = wb["Links"]
@@ -98,12 +103,14 @@ def read_existing_urls(path: str) -> set:
             urls.add(str(row[3]).strip())
     return urls
 
+
 def append_rows(path: str, rows: List[List[str]]) -> None:
     wb = load_workbook(path)
     ws = wb["Links"]
     for r in rows:
         ws.append(r)
     wb.save(path)
+
 
 # =========================
 # State (processed message IDs)
@@ -114,9 +121,11 @@ def load_state(path: str) -> dict:
             return json.load(f)
     return {"processed_ids": []}
 
+
 def save_state(path: str, state: dict) -> None:
     with open(path, "w", encoding="utf-8") as f:
         json.dump(state, f, ensure_ascii=False, indent=2)
+
 
 # =========================
 # Gmail parsing
@@ -124,8 +133,10 @@ def save_state(path: str, state: dict) -> None:
 def get_message(service, msg_id: str) -> dict:
     return service.users().messages().get(userId="me", id=msg_id, format="full").execute()
 
+
 def decode_b64(data: str) -> str:
     return base64.urlsafe_b64decode(data.encode("utf-8")).decode("utf-8", errors="ignore")
+
 
 def extract_headers(payload_headers: List[dict], name: str) -> Optional[str]:
     for h in payload_headers:
@@ -133,8 +144,10 @@ def extract_headers(payload_headers: List[dict], name: str) -> Optional[str]:
             return h.get("value")
     return None
 
+
 def flattened_bodies(payload: dict) -> Tuple[str, str]:
     plain_parts, html_parts = [], []
+
     def walk(part):
         mime = part.get("mimeType", "")
         body = part.get("body", {})
@@ -148,8 +161,10 @@ def flattened_bodies(payload: dict) -> Tuple[str, str]:
         if "parts" in part:
             for p in part["parts"]:
                 walk(p)
+
     walk(payload)
     return ("\n".join(plain_parts), "\n".join(html_parts))
+
 
 def extract_job_urls(subject: str, plain: str, html: str) -> List[str]:
     candidates = [subject or "", plain or ""]
@@ -178,13 +193,10 @@ def extract_job_urls(subject: str, plain: str, html: str) -> List[str]:
     cleaned = set()
     for u in resolved:
         u2 = u.split("?")[0].split("#")[0].rstrip(">/).,'\"’").rstrip("/")
-        if (
-            "linkedin.com/jobs" in u2
-            or "lnkd.in/" in u2
-            or "jobindex.dk/vis-job" in u2
-        ):
+        if "linkedin.com/jobs" in u2 or "lnkd.in/" in u2 or "jobindex.dk/vis-job" in u2:
             cleaned.add(u2)
     return sorted(cleaned)
+
 
 # =========================
 # Core
@@ -216,7 +228,12 @@ def main(
 
     next_token = results.get("nextPageToken")
     while next_token:
-        more = service.users().messages().list(userId="me", q=gmail_query, pageToken=next_token, maxResults=100).execute()
+        more = (
+            service.users()
+            .messages()
+            .list(userId="me", q=gmail_query, pageToken=next_token, maxResults=100)
+            .execute()
+        )
         messages.extend(more.get("messages", []))
         next_token = more.get("nextPageToken")
 
@@ -264,18 +281,25 @@ def main(
 
     print(f"Done. Added {len(new_rows)} new rows to {excel_path}.")
 
+
 # =========================
 # CLI entry
 # =========================
 def run():
     parser = argparse.ArgumentParser(
         prog="job-link-logger",
-        description="Log LinkedIn / Jobindex job links from Gmail into Excel."
+        description="Log LinkedIn / Jobindex job links from Gmail into Excel.",
     )
-    parser.add_argument("--excel", default=EXCEL_PATH_DEFAULT, help="Path to Excel file (default: job_links.xlsx)")
-    parser.add_argument("--state", default=STATE_PATH_DEFAULT, help="Path to state file (default: processed.json)")
+    parser.add_argument(
+        "--excel", default=EXCEL_PATH_DEFAULT, help="Path to Excel file (default: job_links.xlsx)"
+    )
+    parser.add_argument(
+        "--state", default=STATE_PATH_DEFAULT, help="Path to state file (default: processed.json)"
+    )
     parser.add_argument("--query", default=GMAIL_QUERY_DEFAULT, help="Override Gmail search query")
-    parser.add_argument("--reset", action="store_true", help="Delete Excel and state, then rebuild from scratch")
+    parser.add_argument(
+        "--reset", action="store_true", help="Delete Excel and state, then rebuild from scratch"
+    )
     args = parser.parse_args()
 
     main(
