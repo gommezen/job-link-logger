@@ -7,6 +7,8 @@ from typing import List, Tuple, Optional
 import urllib.parse as urlparse
 import argparse
 
+from job_link_logger.config import EXCEL_PATH, STATE_PATH, GMAIL_QUERY
+
 from google.oauth2.credentials import Credentials
 from google_auth_oauthlib.flow import InstalledAppFlow
 from googleapiclient.discovery import build
@@ -188,9 +190,9 @@ def extract_job_urls(subject: str, plain: str, html: str) -> List[str]:
 # Core
 # =========================
 def main(
-    excel_path: str = EXCEL_PATH_DEFAULT,
-    state_path: str = STATE_PATH_DEFAULT,
-    gmail_query: str = GMAIL_QUERY_DEFAULT,
+    excel_path: str = EXCEL_PATH,
+    state_path: str = STATE_PATH,
+    gmail_query: str = GMAIL_QUERY,
     reset: bool = False,
 ):
     if reset:
