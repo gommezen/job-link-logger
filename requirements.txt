@@ -3,6 +3,8 @@ google-auth-httplib2
 google-auth-oauthlib
 openpyxl
 html2text
+python-dotenv
+
 
 # Dev tools
 flake8
