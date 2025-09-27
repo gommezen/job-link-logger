@@ -1,21 +1,32 @@
-# Python
+# Python cache
 __pycache__/
 *.pyc
+*.pyo
+*.pyd
+*.egg-info/
+*.eggs/
+*.pytest_cache/
 
-# Virtual environment
+# Virtual environments
 .venv/
+env/
+venv/
 
-# Google credentials & tokens (DO NOT COMMIT!)
-credentials.json
-token.json
+# Jupyter/VSCode/IDE
+.ipynb_checkpoints/
+.vscode/
+.idea/
 
-# App state
-processed.json
-
-# Output files
-job_links.xlsx
-*.tmp
-
-# IDE/OS clutter
+# OS files
 .DS_Store
 Thumbs.db
+
+# Project-specific generated files
+job_links.xlsx
+~$job_links.xlsx
+processed.json
+token.json
+credentials.json
+
+# Logs
+*.log
