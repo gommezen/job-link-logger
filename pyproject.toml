@@ -1,0 +1,21 @@
+[build-system]
+requires = ["setuptools>=61.0"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "job-link-logger"
+version = "0.1.0"
+description = "Gmail → Excel automation that logs LinkedIn/Jobindex job links."
+readme = "README.md"
+requires-python = ">=3.9"
+authors = [{ name = "YOUR NAME", email = "you@example.com" }]
+dependencies = [
+  "google-api-python-client",
+  "google-auth-httplib2",
+  "google-auth-oauthlib",
+  "openpyxl",
+  "html2text"
+]
+
+[project.scripts]
+job-link-logger = "job_link_logger.cli:run"
