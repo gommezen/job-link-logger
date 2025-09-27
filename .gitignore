@@ -1,0 +1,21 @@
+# Python
+__pycache__/
+*.pyc
+
+# Virtual environment
+.venv/
+
+# Google credentials & tokens (DO NOT COMMIT!)
+credentials.json
+token.json
+
+# App state
+processed.json
+
+# Output files
+job_links.xlsx
+*.tmp
+
+# IDE/OS clutter
+.DS_Store
+Thumbs.db
