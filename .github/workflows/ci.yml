@@ -39,6 +39,11 @@ jobs:
           pip install flake8
           # Lint the main script; don't fail the build on style issues yet
           flake8 job_link_logger.py --max-line-length=100 || true
+      
+       - name: Run unit tests
+        run: |
+          pip install pytest
+          pytest -q
 
       # Optional sanity run. This will not fail CI if credentials are absent.
       - name: Dry-run script
