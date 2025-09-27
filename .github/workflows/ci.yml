@@ -1,4 +1,3 @@
-# Basic CI workflow for Job Link Logger
 name: CI
 
 on:
@@ -13,7 +12,7 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-      - name: Checkout repository
+      - name: Checkout
         uses: actions/checkout@v4
 
       - name: Set up Python
@@ -21,31 +20,18 @@ jobs:
         with:
           python-version: "3.11"
 
-      - name: Cache pip
-        uses: actions/cache@v4
-        with:
-          path: ~/.cache/pip
-          key: ${{ runner.os }}-pip-${{ hashFiles('**/requirements.txt') }}
-          restore-keys: |
-            ${{ runner.os }}-pip-
-
-      - name: Install dependencies
+      - name: Install deps
         run: |
           python -m pip install --upgrade pip
           pip install -r requirements.txt
+          pip install -e .
 
       - name: Lint with flake8
         run: |
           pip install flake8
-          # Lint the main script; don't fail the build on style issues yet
-          flake8 job_link_logger.py --max-line-length=100 || true
-      
-       - name: Run unit tests
+          flake8 job_link_logger --max-line-length=100
+
+      - name: Run tests
         run: |
           pip install pytest
           pytest -q
-
-      # Optional sanity run. This will not fail CI if credentials are absent.
-      - name: Dry-run script
-        run: |
-          python job_link_logger.py || echo "Script executed (Gmail creds not present in CI)."
