@@ -14,7 +14,8 @@ dependencies = [
   "google-auth-httplib2",
   "google-auth-oauthlib",
   "openpyxl",
-  "html2text"
+  "html2text",
+  "python-dotenv",
 ]
 
 [project.scripts]
