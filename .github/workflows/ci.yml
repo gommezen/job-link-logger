@@ -20,18 +20,19 @@ jobs:
         with:
           python-version: "3.11"
 
-      - name: Install deps
+      - name: Install project deps
         run: |
           python -m pip install --upgrade pip
           pip install -r requirements.txt
           pip install -e .
 
-      - name: Lint with flake8
-        run: |
-          pip install flake8
-          flake8 job_link_logger --max-line-length=100
+      # Runs whatever you configured in .pre-commit-config.yaml (black, flake8, etc.)
+      - name: Run pre-commit (format + lint)
+        uses: pre-commit/action@v3.0.1
+        with:
+          extra_args: --all-files
 
-      - name: Run tests
+      - name: Run tests with coverage
         run: |
-          pip install pytest
-          pytest -q
+          pip install pytest-cov
+          pytest --job_link_logger --cov-report=term-missing
