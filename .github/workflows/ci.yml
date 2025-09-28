@@ -32,6 +32,7 @@ jobs:
         with:
           extra_args: --all-files
 
-      - name: Run tests
+      - name: Run tests with coverage
         run: |
-          pytest -q
+          pip install pytest-cov
+          pytest --job_link_logger --cov-report=term-missing

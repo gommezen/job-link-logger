@@ -1,5 +1,8 @@
 # Job Link Logger
 
+![CI](https://github.com/YOURUSERNAME/job-link-logger/actions/workflows/ci.yml/badge.svg)
+
+
 A small Python utility that automatically collects **LinkedIn job links** from Gmail
 and logs them into an Excel file for easy tracking.
 
