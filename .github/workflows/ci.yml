@@ -35,4 +35,4 @@ jobs:
       - name: Run tests with coverage
         run: |
           pip install pytest-cov
-          pytest --job_link_logger --cov-report=term-missing
+          pytest --cov=job_link_logger --cov-report=term-missing
