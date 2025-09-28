@@ -33,9 +33,8 @@ jobs:
           extra_args: --all-files
 
       - name: Run tests with coverage
-        env:
-          PYTEST_ADDOPTS: ""                    # ignore any injected flags
-          PYTEST_DISABLE_PLUGIN_AUTOLOAD: "1"   # avoid plugins adding args
         run: |
           pip install pytest-cov
-          pytest --override-ini="addopts=" --cov=job_link_logger --cov-report=term-missing
+          pytest -p pytest_cov --cov=job_link_logger --cov-report=term-missing
+
+
