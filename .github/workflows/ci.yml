@@ -33,8 +33,18 @@ jobs:
           extra_args: --all-files
 
       - name: Run tests with coverage
+        env:
+          PYTEST_ADDOPTS: ""   # nuke any injected flags from env/Actions variables
         run: |
-          pip install pytest-cov
-          pytest -p pytest_cov --cov=job_link_logger --cov-report=term-missing
+          python -m pip install --upgrade pip
+          pip install pytest pytest-cov
+          python - << "PY"
+import os, pkgutil, pytest
+print("PYTEST_ADDOPTS:", repr(os.environ.get("PYTEST_ADDOPTS")))
+print("pytest version:", pytest.__version__)
+print("pytest-cov present:", any(m.name=="pytest_cov" for m in pkgutil.iter_modules()))
+PY
+          python -m pytest -p pytest_cov --cov=job_link_logger --cov-report=term-missing -q
+
 
 
