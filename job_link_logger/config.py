@@ -1,7 +1,24 @@
+# job_link_logger/config.py
 import os
-from dotenv import load_dotenv
 
-load_dotenv()
+try:
+    from dotenv import load_dotenv  # type: ignore
+
+    load_dotenv()
+except Exception:
+    pass
+
+APP_DIR = os.path.expanduser("~/.config/job-link-logger")
+os.makedirs(APP_DIR, exist_ok=True)
+
+CREDENTIALS_PATH = os.getenv(
+    "CREDENTIALS_PATH",
+    os.path.join(APP_DIR, "credentials.json"),
+)
+TOKEN_PATH = os.getenv(
+    "TOKEN_PATH",
+    os.path.join(APP_DIR, "token.json"),
+)
 
 LABEL_NAME = os.getenv("LABEL_NAME", "Jobs/LinkedIn")
 EXCEL_PATH = os.getenv("EXCEL_PATH", "job_links.xlsx")

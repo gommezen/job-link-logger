@@ -6,9 +6,6 @@ import datetime as dt
 from typing import List, Tuple, Optional
 import urllib.parse as urlparse
 import argparse
-
-from job_link_logger.config import EXCEL_PATH, STATE_PATH, GMAIL_QUERY
-
 from google.oauth2.credentials import Credentials
 from google_auth_oauthlib.flow import InstalledAppFlow
 from googleapiclient.discovery import build
@@ -18,25 +15,27 @@ from openpyxl.utils import get_column_letter
 from openpyxl.worksheet.datavalidation import DataValidation
 import html2text
 
-# =========================
-# Config (constants; you can move to .env later)
-# =========================
-SCOPES = ["https://www.googleapis.com/auth/gmail.readonly"]
-EXCEL_PATH_DEFAULT = "job_links.xlsx"
-STATE_PATH_DEFAULT = "processed.json"  # keeps processed Gmail message IDs
+from pathlib import Path
+from job_link_logger.config import (
+    EXCEL_PATH as EXCEL_PATH_DEFAULT,
+    STATE_PATH as STATE_PATH_DEFAULT,
+    GMAIL_QUERY as GMAIL_QUERY_DEFAULT,
+    CREDENTIALS_PATH as CREDENTIALS_DEFAULT,
+    TOKEN_PATH as TOKEN_DEFAULT,
+    APP_DIR,
+)
 
-LABEL_NAME = "Jobs/LinkedIn"
-SEARCH_TERMS = [
-    "linkedin.com/jobs",
-    "lnkd.in/",
-    "jobindex.dk/vis-job",
-]
-_terms = " OR ".join(f'"{t}"' for t in SEARCH_TERMS)
-GMAIL_QUERY_DEFAULT = f'(label:"{LABEL_NAME}" OR ({_terms})) newer_than:60d'
+
+# Gmail API scope
+SCOPES = ["https://www.googleapis.com/auth/gmail.readonly"]
+
+# =========================
+# Config
+# =========================
 
 # Unified URL matcher: LinkedIn jobs, lnkd.in, Jobindex
 JOB_URL_REGEX = re.compile(
-    r"(?:"
+    r"(?:"  # non-capturing group
     r'https?://(?:www\.)?linkedin\.com[^\s"\'<)]+'
     r"|https?://lnkd\.in/[A-Za-z0-9_-]+"
     r'|https?://(?:www\.)?jobindex\.dk/vis-job/[^\s"\'<)]+'
@@ -48,27 +47,59 @@ JOB_URL_REGEX = re.compile(
 # =========================
 # Gmail auth & client
 # =========================
-def get_gmail_service():
+def get_gmail_service(credentials_path: str, token_path: str):
+    """Build a Gmail API client."""
+    candidates = [
+        Path(credentials_path).expanduser(),
+        Path.cwd() / "credentials.json",
+        Path(__file__).resolve().parent / "credentials.json",
+        Path(APP_DIR) / "credentials.json",
+    ]
+    cred_file = next((p for p in candidates if p.is_file()), None)
+    if not cred_file:
+        raise FileNotFoundError(
+            "credentials.json not found.\n"
+            "Place it in one of:\n"
+            f"  - {credentials_path}\n"
+            f"  - {Path.cwd() / 'credentials.json'}\n"
+            f"  - {Path(__file__).resolve().parent / 'credentials.json'}\n"
+            f"  - {Path(APP_DIR) / 'credentials.json'}\n"
+            "Or pass --credentials <path> / set CREDENTIALS_PATH."
+        )
+
+    token_file = Path(token_path).expanduser()
+    token_file.parent.mkdir(parents=True, exist_ok=True)
+
     creds = None
-    if os.path.exists("token.json"):
-        creds = Credentials.from_authorized_user_file("token.json", SCOPES)
+    if token_file.exists():
+        creds = Credentials.from_authorized_user_file(str(token_file), SCOPES)
+
     if not creds or not creds.valid:
         if creds and creds.expired and creds.refresh_token:
             from google.auth.transport.requests import Request
 
             creds.refresh(Request())
         else:
-            flow = InstalledAppFlow.from_client_secrets_file("credentials.json", SCOPES)
+            flow = InstalledAppFlow.from_client_secrets_file(str(cred_file), SCOPES)
             creds = flow.run_local_server(port=0)
-        with open("token.json", "w") as token:
-            token.write(creds.to_json())
+        with open(token_file, "w", encoding="utf-8") as f:
+            f.write(creds.to_json())
+
     return build("gmail", "v1", credentials=creds)
 
 
 # =========================
 # Excel helpers
 # =========================
-HEADERS = ["Date", "From", "Subject", "Job URL", "Gmail Permalink", "Status", "Notes"]
+HEADERS = [
+    "Date",
+    "From",
+    "Subject",
+    "Job URL",
+    "Gmail Permalink",
+    "Status",
+    "Notes",
+]
 
 
 def ensure_excel(path: str) -> None:
@@ -82,12 +113,24 @@ def ensure_excel(path: str) -> None:
             ws.column_dimensions[get_column_letter(i)].width = w
 
         data = wb.create_sheet("Data")
-        statuses = ["", "To Review", "Applied", "Interview", "Offer", "Rejected", "On Hold"]
+        statuses = [
+            "",
+            "To Review",
+            "Applied",
+            "Interview",
+            "Offer",
+            "Rejected",
+            "On Hold",
+        ]
         data["A1"] = "Statuses"
         for i, s in enumerate(statuses, start=2):
             data[f"A{i}"] = s
 
-        dv = DataValidation(type="list", formula1="=Data!$A$2:$A$8", allow_blank=True)
+        dv = DataValidation(
+            type="list",
+            formula1="=Data!$A$2:$A$8",
+            allow_blank=True,
+        )
         ws.add_data_validation(dv)
         dv.add("F2:F10000")
 
@@ -113,7 +156,7 @@ def append_rows(path: str, rows: List[List[str]]) -> None:
 
 
 # =========================
-# State (processed message IDs)
+# State
 # =========================
 def load_state(path: str) -> dict:
     if os.path.exists(path):
@@ -202,11 +245,18 @@ def extract_job_urls(subject: str, plain: str, html: str) -> List[str]:
 # Core
 # =========================
 def main(
-    excel_path: str = EXCEL_PATH,
-    state_path: str = STATE_PATH,
-    gmail_query: str = GMAIL_QUERY,
+    excel_path: str = EXCEL_PATH_DEFAULT,
+    state_path: str = STATE_PATH_DEFAULT,
+    gmail_query: str = GMAIL_QUERY_DEFAULT,
     reset: bool = False,
+    credentials_path: str = str(CREDENTIALS_DEFAULT),
+    token_path: str = str(TOKEN_DEFAULT),
 ):
+    service = get_gmail_service(
+        credentials_path=credentials_path,
+        token_path=token_path,
+    )
+
     if reset:
         try:
             if os.path.exists(excel_path):
@@ -222,7 +272,6 @@ def main(
     state = load_state(state_path)
     processed_ids = set(state.get("processed_ids", []))
 
-    service = get_gmail_service()
     results = service.users().messages().list(userId="me", q=gmail_query, maxResults=100).execute()
     messages = results.get("messages", [])
 
@@ -231,7 +280,12 @@ def main(
         more = (
             service.users()
             .messages()
-            .list(userId="me", q=gmail_query, pageToken=next_token, maxResults=100)
+            .list(
+                userId="me",
+                q=gmail_query,
+                pageToken=next_token,
+                maxResults=100,
+            )
             .execute()
         )
         messages.extend(more.get("messages", []))
@@ -253,7 +307,10 @@ def main(
         date_str = extract_headers(headers, "Date") or ""
 
         try:
-            parsed = dt.datetime.strptime(date_str, "%a, %d %b %Y %H:%M:%S %z")
+            parsed = dt.datetime.strptime(
+                date_str,
+                "%a, %d %b %Y %H:%M:%S %z",
+            )
             display_date = parsed.astimezone().strftime("%Y-%m-%d %H:%M")
         except Exception:
             display_date = date_str
@@ -267,6 +324,7 @@ def main(
             for u in urls:
                 if u not in existing_urls:
                     new_rows.append([display_date, from_, subject, u, permalink, "", ""])
+
                     existing_urls.add(u)
                     appended_any = True
 
@@ -275,11 +333,52 @@ def main(
 
     if new_rows:
         append_rows(excel_path, new_rows)
+        print(f"✅ Added {len(new_rows)} new jobs to {excel_path}.")
+    else:
+        print("✅ No new jobs found.")
 
     processed_ids.update(newly_processed)
     save_state(state_path, {"processed_ids": sorted(processed_ids)})
 
-    print(f"Done. Added {len(new_rows)} new rows to {excel_path}.")
+
+# ===========================
+# Doctor
+# =========================
+def doctor(
+    credentials_path: str,
+    token_path: str,
+    excel_path: str,
+    state_path: str,
+):
+    print("🔍 Job Link Logger Doctor\n")
+
+    cred = Path(credentials_path).expanduser()
+    print(f"{'✅' if cred.exists() else '❌'} " f"credentials.json at {cred}")
+
+    token = Path(token_path).expanduser()
+    print(f"{'✅' if token.exists() else '⚠️'} " f"token.json at {token}")
+
+    excel = Path(excel_path)
+    if excel.exists():
+        try:
+            urls = read_existing_urls(excel)
+            print(f"✅ Excel file at {excel} " f"({len(urls)} job links)")
+        except Exception as e:
+            print(f"❌ Excel file exists but could not be read: {e}")
+    else:
+        print("⚠️ Excel file not found " "(will be created on next run)")
+
+    state = Path(state_path)
+    if state.exists():
+        try:
+            with open(state, "r", encoding="utf-8") as f:
+                data = json.load(f)
+            count = len(data.get("processed_ids", []))
+            print(f"✅ State file at {state} " f"({count} Gmail messages processed)")
+        except Exception as e:
+            print(f"❌ State file exists but could not be read: {e}")
+    else:
+        print("⚠️ State file not found " "(will be created on first successful run)")
 
 
 # =========================
@@ -288,23 +387,35 @@ def main(
 def run():
     parser = argparse.ArgumentParser(
         prog="job-link-logger",
-        description="Log LinkedIn / Jobindex job links from Gmail into Excel.",
+        description=("Log LinkedIn / Jobindex job links " "from Gmail into Excel."),
     )
-    parser.add_argument(
-        "--excel", default=EXCEL_PATH_DEFAULT, help="Path to Excel file (default: job_links.xlsx)"
-    )
-    parser.add_argument(
-        "--state", default=STATE_PATH_DEFAULT, help="Path to state file (default: processed.json)"
-    )
-    parser.add_argument("--query", default=GMAIL_QUERY_DEFAULT, help="Override Gmail search query")
-    parser.add_argument(
-        "--reset", action="store_true", help="Delete Excel and state, then rebuild from scratch"
-    )
+
+    subparsers = parser.add_subparsers(dest="command")
+
+    run_parser = subparsers.add_parser("run", help="Run the job link logger")
+    run_parser.add_argument("--excel", default=EXCEL_PATH_DEFAULT)
+    run_parser.add_argument("--state", default=STATE_PATH_DEFAULT)
+    run_parser.add_argument("--query", default=GMAIL_QUERY_DEFAULT)
+    run_parser.add_argument("--credentials", default=str(CREDENTIALS_DEFAULT))
+    run_parser.add_argument("--token", default=str(TOKEN_DEFAULT))
+    run_parser.add_argument("--reset", action="store_true")
+
+    doc_parser = subparsers.add_parser("doctor", help="Check config and files")
+    doc_parser.add_argument("--credentials", default=str(CREDENTIALS_DEFAULT))
+    doc_parser.add_argument("--token", default=str(TOKEN_DEFAULT))
+    doc_parser.add_argument("--excel", default=EXCEL_PATH_DEFAULT)
+    doc_parser.add_argument("--state", default=STATE_PATH_DEFAULT)
+
     args = parser.parse_args()
 
-    main(
-        excel_path=args.excel,
-        state_path=args.state,
-        gmail_query=args.query,
-        reset=args.reset,
-    )
+    if args.command == "doctor":
+        doctor(args.credentials, args.token, args.excel, args.state)
+    else:
+        main(
+            excel_path=getattr(args, "excel", EXCEL_PATH_DEFAULT),
+            state_path=getattr(args, "state", STATE_PATH_DEFAULT),
+            gmail_query=getattr(args, "query", GMAIL_QUERY_DEFAULT),
+            credentials_path=getattr(args, "credentials", str(CREDENTIALS_DEFAULT)),
+            token_path=getattr(args, "token", str(TOKEN_DEFAULT)),
+            reset=getattr(args, "reset", False),
+        )
