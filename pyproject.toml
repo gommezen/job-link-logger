@@ -8,7 +8,9 @@ version = "0.1.0"
 description = "Gmail → Excel automation that logs LinkedIn/Jobindex job links."
 readme = "README.md"
 requires-python = ">=3.9"
-authors = [{ name = "YOUR NAME", email = "you@example.com" }]
+authors = [
+  { name = "YOUR NAME", email = "you@example.com" }
+]
 dependencies = [
   "google-api-python-client",
   "google-auth-httplib2",
@@ -20,3 +22,27 @@ dependencies = [
 
 [project.scripts]
 job-link-logger = "job_link_logger.cli:run"
+
+# -------------------------
+# Tooling configs
+# -------------------------
+
+[tool.flake8]
+max-line-length = 100
+exclude = [
+  ".git",
+  "__pycache__",
+  ".venv",
+  "build",
+  "dist",
+]
+# limit linting to your actual code + tests
+paths = ["job_link_logger", "tests"]
+
+[tool.black]
+line-length = 100
+target-version = ["py39"]
+
+[tool.isort]
+profile = "black"
+line_length = 100
