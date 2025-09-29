@@ -24,9 +24,11 @@ Thumbs.db
 # Project-specific generated files
 job_links.xlsx
 ~$job_links.xlsx
+alt_links.xlsx
 processed.json
 token.json
 credentials.json
+config.yaml
 
 # Logs
 *.log
