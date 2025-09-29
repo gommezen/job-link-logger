@@ -1,87 +1,111 @@
 # Job Link Logger
 
-![CI](https://github.com/YOURUSERNAME/job-link-logger/actions/workflows/ci.yml/badge.svg)
+![CI](https://github.com/gommezen/job-link-logger/actions/workflows/ci.yml/badge.svg)
 
-
-A small Python utility that automatically collects **LinkedIn job links** from Gmail
-and logs them into an Excel file for easy tracking.
+A small Python utility that automatically collects **job links** (e.g. LinkedIn, Jobindex.dk, `lnkd.in`) from Gmail and logs them into an Excel file for easy tracking.  
 
 ---
 
-## Features
-- Uses the Gmail API (read-only scope).
-- Extracts `linkedin.com/jobs/...` and `lnkd.in/...` links from labeled emails.
-- Appends to `job_links.xlsx` with columns:
+## ✨ Features
+- Connects to Gmail via **OAuth** (read-only).
+- Extracts job links and metadata:
   - Date  
   - From  
   - Subject  
-  - LinkedIn URL  
+  - Job URL  
   - Gmail Permalink  
   - Status (dropdown: To Review, Applied, Interview, Offer, Rejected, On Hold)  
   - Notes
-- Prevents duplicates and remembers processed emails.
-- Optional: schedule with Task Scheduler (Windows) or `cron` (Linux/macOS).
+- Prevents duplicates (tracks processed emails in `processed.json`).
+- Appends unique jobs to `job_links.xlsx`.
+- Ready-to-use **CLI** with multiple options.
+- Tested, linted (Flake8/Black/Isort), and CI-integrated.  
 
 ---
 
-## Setup
+## 🚀 Quickstart
 
-### 1. Clone and install
+### 1. Clone & Install
 ```bash
-git clone https://github.com/YOURUSERNAME/job-link-logger.git
+git clone https://github.com/gommezen/job-link-logger.git
 cd job-link-logger
 python -m venv .venv
 
+# Activate virtualenv
 # Windows:
 .\.venv\Scripts\activate
 # macOS/Linux:
 source .venv/bin/activate
 
 pip install --upgrade pip
-pip install google-api-python-client google-auth-httplib2 google-auth-oauthlib openpyxl html2text
+pip install -e .
+```
 
-### 2. Create Google OAuth credentials
+---
 
-Go to Google Cloud Console
-.
+### 2. Create Google OAuth Credentials
+1. Go to [Google Cloud Console](https://console.cloud.google.com/).  
+2. Create or select a project.  
+3. Enable the **Gmail API**.  
+4. Configure the OAuth consent screen:  
+   - User type: **External**  
+   - Add your Gmail as a test user  
+5. Create an OAuth Client ID:  
+   - Application type: **Desktop app**  
+6. Download the JSON → save it as **`credentials.json`** in this project.  
 
-Create or select a project.
+⚠️ **Never commit** `credentials.json` or `token.json`. They’re already in `.gitignore`.
 
-Enable the Gmail API.
-
-Configure the OAuth consent screen:
-
-User type: External
-
-Add your Gmail as a test user.
-
-Create an OAuth Client ID:
-
-Application type: Desktop app
-
-Download the JSON and save it in this project as credentials.json
-
-⚠️ Never commit credentials.json or token.json to GitHub (they’re ignored via .gitignore).
-
+---
 
 ### 3. Prepare Gmail
+- Create a label in Gmail, e.g. `Jobs/LinkedIn`.  
+- Add filters so LinkedIn/Jobindex job emails are tagged with this label.  
+- Confirm in Gmail that job mails appear under this label.  
 
-In Gmail, create a label, e.g. Jobs/LinkedIn.
+---
 
-Create a filter so that LinkedIn job emails (e.g., with [JOB] in the subject) are automatically labeled.
+### 4. Run the Logger
+```bash
+# First run: will open browser for OAuth
+python -m job_link_logger run --verbose
+```
 
-Confirm in Gmail that your job emails appear under this label.
+This will:  
+- Authenticate your Gmail.  
+- Extract job links.  
+- Save them in `job_links.xlsx`.  
 
-### 4. Run the script
-python job_link_logger.py
+---
 
+## 🛠 CLI Commands
 
-On the first run, a browser window will open.
+```bash
+python -m job_link_logger run         # Run pipeline
+python -m job_link_logger doctor      # Check setup & files
+```
 
-Log in with the Gmail you added as a test user.
+### Options
+- `--excel PATH` → custom Excel filename  
+- `--state PATH` → custom state file  
+- `--query QUERY` → custom Gmail search  
+- `--credentials PATH` / `--token PATH` → custom auth files  
+- `--reset` → reset processed state  
+- `--verbose` → extra debug output  
 
-Approve the read-only access.
+---
 
-A token.json file will be created for future runs.
+## 📈 Roadmap (v0.2+)
+- Config via `.env` / `config.toml` (no more long CLI args).  
+- Smarter defaults (Excel with date suffixes).  
+- `--dry-run` mode (show jobs, no write).  
+- Multi-query support (LinkedIn + Jobindex + custom).  
+- Excel enhancements (filters, job stats sheet).  
+- Notifications (Slack, Discord, Email).  
+- Optional web dashboard (Streamlit/FastAPI).  
+- Publish to **PyPI** + Docker support.  
 
-Your job links will now be extracted and saved in job_links.xlsx.
+---
+
+## 📜 License
+MIT License © 2025 Niels Gommesen
