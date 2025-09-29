@@ -10,6 +10,8 @@ from google.oauth2.credentials import Credentials
 from google_auth_oauthlib.flow import InstalledAppFlow
 from googleapiclient.discovery import build
 
+# from job_link_logger.config_loader import load_config
+
 from openpyxl import Workbook, load_workbook
 from openpyxl.utils import get_column_letter
 from openpyxl.worksheet.datavalidation import DataValidation
@@ -90,6 +92,9 @@ def get_gmail_service(credentials_path: str, token_path: str):
 
 # =========================
 # Excel helpers
+# Create and manage the Excel file where job links are logged.
+# Ensuring the file exists, reading existing links to avoid duplicates,
+# and appending new job entries.
 # =========================
 HEADERS = [
     "Date",
@@ -156,7 +161,7 @@ def append_rows(path: str, rows: List[List[str]]) -> None:
 
 
 # =========================
-# State
+# State - Manage processed Gmail message IDs to avoid reprocessing
 # =========================
 def load_state(path: str) -> dict:
     if os.path.exists(path):
@@ -171,7 +176,9 @@ def save_state(path: str, state: dict) -> None:
 
 
 # =========================
-# Gmail parsing
+# Gmail parsing - identify and extract job-related URLs from the email body.
+# These functions handle fetching and parsing Gmail messages to extract relevant job links.
+# They utilize the Gmail API to retrieve email content and then apply various parsing techniques.
 # =========================
 def get_message(service, msg_id: str) -> dict:
     return service.users().messages().get(userId="me", id=msg_id, format="full").execute()
@@ -242,7 +249,10 @@ def extract_job_urls(subject: str, plain: str, html: str) -> List[str]:
 
 
 # =========================
-# Core
+# Core logic
+# This is the main function that orchestrates the job link logging process.
+# It uses the Gmail API to fetch emails, extracts job links, and logs them into an Excel file.
+# It also manages state to avoid processing the same email multiple times.
 # =========================
 def main(
     excel_path: str = EXCEL_PATH_DEFAULT,
@@ -251,7 +261,9 @@ def main(
     reset: bool = False,
     credentials_path: str = str(CREDENTIALS_DEFAULT),
     token_path: str = str(TOKEN_DEFAULT),
+    verbose: bool = False,
 ):
+    # ✅ Build Gmail service using provided/default paths
     service = get_gmail_service(
         credentials_path=credentials_path,
         token_path=token_path,
@@ -272,8 +284,12 @@ def main(
     state = load_state(state_path)
     processed_ids = set(state.get("processed_ids", []))
 
+    # ✅ Fetch Gmail messages
     results = service.users().messages().list(userId="me", q=gmail_query, maxResults=100).execute()
     messages = results.get("messages", [])
+
+    if verbose:
+        print(f"🔍 Found {len(messages)} Gmail messages matching query.")
 
     next_token = results.get("nextPageToken")
     while next_token:
@@ -291,6 +307,7 @@ def main(
         messages.extend(more.get("messages", []))
         next_token = more.get("nextPageToken")
 
+    # ✅ Collect new rows
     new_rows, newly_processed = [], []
 
     for m in messages:
@@ -324,13 +341,22 @@ def main(
             for u in urls:
                 if u not in existing_urls:
                     new_rows.append([display_date, from_, subject, u, permalink, "", ""])
-
                     existing_urls.add(u)
                     appended_any = True
 
         if appended_any:
             newly_processed.append(msg_id)
 
+    # ✅ Verbose debug output
+    # Show extracted job links
+    if verbose and new_rows:
+        print(f"✨ Extracted {len(new_rows)} new job links:")
+        for row in new_rows[:10]:  # show only first 10 links
+            print(f"   - {row[3]}")
+        if len(new_rows) > 10:
+            print(f"   ... and {len(new_rows) - 10} more")
+
+    # ✅ Write results
     if new_rows:
         append_rows(excel_path, new_rows)
         print(f"✅ Added {len(new_rows)} new jobs to {excel_path}.")
@@ -343,6 +369,8 @@ def main(
 
 # ===========================
 # Doctor
+# A simple diagnostic function to check the existence and validity of
+# credentials, token, Excel, and state files, and reports their status.
 # =========================
 def doctor(
     credentials_path: str,
@@ -387,11 +415,12 @@ def doctor(
 def run():
     parser = argparse.ArgumentParser(
         prog="job-link-logger",
-        description=("Log LinkedIn / Jobindex job links " "from Gmail into Excel."),
+        description="Log LinkedIn / Jobindex job links from Gmail into Excel.",
     )
 
     subparsers = parser.add_subparsers(dest="command")
 
+    # --- run command ---
     run_parser = subparsers.add_parser("run", help="Run the job link logger")
     run_parser.add_argument("--excel", default=EXCEL_PATH_DEFAULT)
     run_parser.add_argument("--state", default=STATE_PATH_DEFAULT)
@@ -399,7 +428,9 @@ def run():
     run_parser.add_argument("--credentials", default=str(CREDENTIALS_DEFAULT))
     run_parser.add_argument("--token", default=str(TOKEN_DEFAULT))
     run_parser.add_argument("--reset", action="store_true")
+    run_parser.add_argument("--verbose", action="store_true", help="Enable verbose output")
 
+    # --- doctor command ---
     doc_parser = subparsers.add_parser("doctor", help="Check config and files")
     doc_parser.add_argument("--credentials", default=str(CREDENTIALS_DEFAULT))
     doc_parser.add_argument("--token", default=str(TOKEN_DEFAULT))
@@ -418,4 +449,5 @@ def run():
             credentials_path=getattr(args, "credentials", str(CREDENTIALS_DEFAULT)),
             token_path=getattr(args, "token", str(TOKEN_DEFAULT)),
             reset=getattr(args, "reset", False),
+            verbose=getattr(args, "verbose", False),
         )
